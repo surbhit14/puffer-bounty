@@ -6,6 +6,8 @@ const infuraUrl = 'https://mainnet.infura.io/v3/2bf4df7e147a4b4990678da24ad867c1
 const web3 = new Web3(infuraUrl);
 
 const contractAddress = '0x0BAAc79acD45A023E19345c352d8a7a83C4e5656'; // Address of registry contract
+//0x870679e138bcdf293b7ff14dd44b70fc97e12fc0
+
 //Find address of registry contracts
 const contractAbi = [
     {
