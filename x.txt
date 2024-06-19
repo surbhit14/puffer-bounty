@@ -1,0 +1,17 @@
+2bf4df7e147a4b4990678da24ad867c1
+
+remove the 0x in front of  the operatorId being returned          
+const operatorId = await getOperatorId(operatorAddress);
+
+and after that call the api 
+https://dataapi.eigenda.xyz/api/v1/operators-info/port-check?operator_id=42162FBD59503A09B5709D0E612B824CD12F92FA577EA993FD67E797DF19415C
+with all the operator Ids and its response will look like this 
+{
+    "operator_id": "42162FBD59503A09B5709D0E612B824CD12F92FA577EA993FD67E797DF19415C",
+    "dispersal_socket": "129.213.106.122:32005",
+    "retrieval_socket": "129.213.106.122:32004",
+    "dispersal_online": true,
+    "retrieval_online": true
+}
+
+const infuraUrl = 'https://mainnet.infura.io/v3/2bf4df7e147a4b4990678da24ad867c1';
