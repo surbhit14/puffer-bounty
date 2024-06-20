@@ -5,12 +5,16 @@ const axios = require('axios');
 const { performance } = require('perf_hooks');
 const { setDefaultResultOrder } = require("dns");
 const net = require('net');
+const mongoose = require('mongoose');
 
 // setDefaultResultOrder("ipv4first");
 
 // MongoDB connection details
-const mongoUrl = 'mongodb://localhost:27017';
-const dbName = 'operatorMetrics';
+// const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+// const dbName = 'AVSData';
+const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/AVSData?retryWrites=true&w=majority&appName=Cluster0";
+// const dbName = 'AVSData';
+mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const app = express();
 const port = 3000;
@@ -177,6 +181,37 @@ app.get('/api/check-ports', async (req, res) => {
                 }
             }
         }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+const OperatorSchema = new mongoose.Schema({
+    operatorAddress: String,
+    avsName: String,
+    optedForMonitoring: Boolean,
+    createdAt: { type: Date, default: Date.now }
+});
+
+const TimeSeriesSchema = new mongoose.Schema({
+    operatorAddress: String,
+    dispersal_response_time: String,
+    retrieval_response_time: String,
+    timestamp: { type: Date, default: Date.now }
+});
+
+const Operator = mongoose.model('Operator', OperatorSchema);
+const TimeSeries = mongoose.model('TimeSeries', TimeSeriesSchema);
+
+app.get('/api/timeseries', async (req, res) => {
+    const { operatorAddress } = req.query;
+    if (!operatorAddress) {
+        return res.status(400).json({ error: 'operatorAddress is required' });
+    }
+
+    try {
+        const timeSeriesData = await TimeSeries.find({ operatorAddress }).sort({ timestamp: 1 });
+        res.json(timeSeriesData);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
