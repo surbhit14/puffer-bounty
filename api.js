@@ -102,26 +102,40 @@ app.get('/api/check-health', async (req, res) => {
     }
 });
 
-function isPortOpen(ip, port, timeout = 5000) {
+function checkPort(ip, port, timeout = 5000) {
     return new Promise((resolve) => {
+        const start = performance.now();
         const socket = new net.Socket();
+        let success = false;
+
         socket.setTimeout(timeout);
-        
+
         socket.on('connect', () => {
+            const end = performance.now();
+            const responseTime = (end - start).toFixed(3);
+            success = true;
             socket.destroy();
-            resolve(true);
+            resolve({ online: true, responseTime });
         });
-        
+
         socket.on('timeout', () => {
             socket.destroy();
-            resolve(false);
+            resolve({ online: false, responseTime: null });
         });
-        
+
         socket.on('error', () => {
             socket.destroy();
-            resolve(false);
+            resolve({ online: false, responseTime: null });
         });
-        
+
+        socket.on('close', () => {
+            if (!success) {
+                const end = performance.now();
+                const responseTime = (end - start).toFixed(3);
+                resolve({ online: false, responseTime });
+            }
+        });
+
         socket.connect(port, ip);
     });
 }
@@ -143,23 +157,26 @@ app.get('/api/check-ports', async (req, res) => {
                 if (socket) {
                     const ipAddress = socket.split(':')[0];
                     console.log(ipAddress);
-                    const dispersal_port = 32005, retrieval_port = 32004;
-                    const dispersal_online = await isPortOpen(ipAddress, dispersal_port);
-                    const retrieval_online = await isPortOpen(ipAddress, retrieval_port);
+                    const dispersalPort = 32005, retrievalPort = 32004;
+                    // const dispersal_online = await isPortOpen(ipAddress, dispersal_port);
+                    // const retrieval_online = await isPortOpen(ipAddress, retrieval_port);
+
+                    const dispersalStatus = await checkPort(ipAddress, dispersalPort);
+                    const retrievalStatus = await checkPort(ipAddress, retrievalPort);
                     
                     const status = {
-                        "dispersal_online": dispersal_online,
-                        "dispersal_socket": `${ipAddress}:${dispersal_port}`,
-                        "retrieval_online": retrieval_online,
-                        "retrieval_socket": `${ipAddress}:${retrieval_port}`
+                        dispersal_online: dispersalStatus.online,
+                        dispersal_socket: `${ipAddress}:${dispersalPort}`,
+                        dispersal_response_time: dispersalStatus.responseTime,
+                        retrieval_online: retrievalStatus.online,
+                        retrieval_socket: `${ipAddress}:${retrievalPort}`,
+                        retrieval_response_time: retrievalStatus.responseTime
                     };
                 
                     res.json(status);
                 }
             }
         }
-        
-        res.status(404).json({ error: 'Operator ID or socket not found for the given address' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
