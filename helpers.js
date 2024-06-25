@@ -136,19 +136,14 @@ async function fetchOperatorSocket(operatorId) {
 }
 
 // Function to fetch registry addresses from MongoDB
-async function fetchRegistryAddresses(avsName = null) {
-    const client = new MongoClient(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+async function fetchRegistryAddresses() {
+    const client = new MongoClient(mongoUrl);
     try {
         await client.connect();
         const db = client.db(dbName);
         const collection = db.collection(registryCollectionName);
         
-        let query = {};
-        if (avsName) {
-            query = { avs_name: avsName };
-        }
-
-        const registries = await collection.find(query).toArray();
+        const registries = await collection.find().toArray();
         return registries;
     } catch (error) {
         console.error(`Error fetching registry addresses from MongoDB: ${error.message}`);
@@ -259,6 +254,26 @@ async function measureResponseTime(ipWithSocket) {
     });
 }
 
+async function fetchOperatorsForAVS(avsName) {
+    try {
+        const response = await axios.get(`https://api.dune.com/api/v1/eigenlayer/operator-to-avs-mapping?avs_name=${avsName}`, {
+            headers: { 'X-DUNE-API-KEY': '9twHTOAjtbl9jLGhJAGtDPNTGMY9CyKz' }
+        });
+
+        const operators = response.data.result.rows.map(row => ({
+            operator_contract_address: row.operator_contract_address,
+            operator_name: row.operator_name,
+            operator_website: row.operator_website,
+            registered_time: row.registered_time
+        }));
+        
+        return operators;
+    } catch (error) {
+        console.error('Error fetching operators for AVS:', error);
+        return [];
+    }
+}
+
 module.exports = {
     fetchAvsMetadata,
     getRegistryCoordinator,
@@ -269,5 +284,6 @@ module.exports = {
     checkResponseTime,
     scanPorts,
     measureLatency,
-    measureResponseTime
+    measureResponseTime,
+    fetchOperatorsForAVS
 };
