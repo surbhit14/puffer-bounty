@@ -1,4 +1,4 @@
-2bf4df7e147a4b4990678da24ad867c1
+3829e40831594f05a2e04ef536263af6
 
 remove the 0x in front of  the operatorId being returned          
 const operatorId = await getOperatorId(operatorAddress);
@@ -14,4 +14,4 @@ with all the operator Ids and its response will look like this
     "retrieval_online": true
 }
 
-const infuraUrl = 'https://mainnet.infura.io/v3/2bf4df7e147a4b4990678da24ad867c1';
+const infuraUrl = 'https://mainnet.infura.io/v3/3829e40831594f05a2e04ef536263af6';

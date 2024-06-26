@@ -1,5 +1,5 @@
 const express = require('express');
-const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS } = require('./helpers');
+const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS,getHistoricOperatorSocketUpdates } = require('./helpers');
 const { MongoClient } = require('mongodb');
 const axios = require('axios');
 const { performance } = require('perf_hooks');
@@ -43,7 +43,7 @@ app.use(express.json());
 // });
 
 app.get('/api/operator-ip', async (req, res) => {
-    const { operatorAddress} = req.query;
+    const { operatorAddress } = req.query;
 
     if (!operatorAddress) {
         return res.status(400).json({ error: 'operatorAddress is required' });
@@ -51,40 +51,45 @@ app.get('/api/operator-ip', async (req, res) => {
 
     try {
         const registries = await fetchRegistryAddresses();
-        const results = [];
+        let socket = "";
+        let ipAddress = "";
+        let operatorId = "";
+        let found = false;
 
         for (const registry of registries) {
-            const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+            operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+            console.log(operatorId);
 
             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
-                const socket = await fetchOperatorSocket(operatorId);
+                socket = await fetchOperatorSocket(operatorId);
+                console.log(socket);
+
                 if (socket) {
-                    const ipAddress = socket.split(':')[0];
-                    results.push({
-                        registryCoordinatorAddress: registry.registryCoordinatorAddress,
-                        operatorId,
-                        ipAddress,
-                        socket
-                    });
-                } else {
-                    results.push({
-                        registryCoordinatorAddress: registry.registryCoordinatorAddress,
-                        operatorId: 'not registered'
-                    });
+                    ipAddress = socket.split(':')[0];
+                    found = true;
+                    break; // Stop the loop once we find a valid socket
                 }
-            } else {
-                results.push({
-                    registryCoordinatorAddress: registry.registryCoordinatorAddress,
-                    operatorId: 'not registered'
-                });
             }
         }
 
-        res.json(results);
+        console.log(found);
+
+        if (found) {
+            res.json({
+                operatorId,
+                ipAddress,
+                socket
+            });
+        } else {
+            res.json({
+                operatorId: 'not registered'
+            });
+        }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 function checkPort(ip, port, timeout = 5000) {
     return new Promise((resolve) => {
@@ -125,13 +130,13 @@ function checkPort(ip, port, timeout = 5000) {
 }
 
 app.get('/api/check-ports', async (req, res) => {
-    const { operatorAddress, avsName } = req.query;
+    const { operatorAddress} = req.query;
     if (!operatorAddress) {
         return res.status(400).json({ error: 'operatorAddress is required' });
     }
 
     try {
-        const registries = await fetchRegistryAddresses(avsName);
+        const registries = await fetchRegistryAddresses();
         let responseSent = false;
 
         for (const registry of registries) {
@@ -194,6 +199,7 @@ app.get('/api/registered-avss', async (req, res) => {
 
             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
                 const socket = await fetchOperatorSocket(operatorId);
+                console.log(socket)
                 if (socket) {
                     registeredAvss.push(registry.avs_name);
                 }
@@ -260,7 +266,9 @@ app.get('/api/timeseries/avs', async (req, res) => {
 
     try {
         const operators = await fetchOperatorsForAVS(avsName);
+        
         const operatorAddresses = operators.map(op => op.operator_contract_address);
+        // console.log(operatorAddresses)
         const timeSeriesData = await TimeSeries.find({ operatorAddress: { $in: operatorAddresses } }).sort({ timestamp: 1 });
 
         const enrichedData = timeSeriesData.map(data => ({
@@ -273,6 +281,46 @@ app.get('/api/timeseries/avs', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// API endpoint to fetch the historic OperatorSocketUpdate events
+app.get('/api/operator-socket-updates', async (req, res) => {
+    const { operatorAddress, avsName } = req.query;
+
+    if (!operatorAddress) {
+        return res.status(400).json({ error: 'operatorAddress is required' });
+    }
+
+    try {
+        const registries = await fetchRegistryAddresses(avsName);
+        const results = [];
+
+        for (const registry of registries) {
+            const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+
+            if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                const historicEvents = await getHistoricOperatorSocketUpdates(registry.registryCoordinatorAddress, operatorId);
+                if (historicEvents.length > 0) {
+                    results.push({
+                        registryCoordinatorAddress: registry.registryCoordinatorAddress,
+                        operatorId,
+                        historicEvents
+                    });
+                }
+            }
+        }
+
+        if (results.length === 0) {
+            res.status(404).json({ error: 'No valid OperatorSocketUpdate events found for the operator' });
+        } else {
+            res.json(results);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+
 
 // Start the server
 app.listen(port, () => {

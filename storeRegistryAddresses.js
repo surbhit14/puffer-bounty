@@ -9,7 +9,7 @@ const dbName = 'AVSData';
 const registryCollectionName = 'registryAddresses';
 
 // Infura and Web3 setup
-const infuraUrl = 'https://mainnet.infura.io/v3/2bf4df7e147a4b4990678da24ad867c1';
+const infuraUrl = 'https://mainnet.infura.io/v3/3829e40831594f05a2e04ef536263af6';
 const web3 = new Web3(infuraUrl);
 
 // ABI for the registryCoordinator method

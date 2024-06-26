@@ -2,6 +2,8 @@ const { Web3 } = require('web3');
 const fetch = require('node-fetch');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const axios = require('axios');
+
 
 const execAsync = promisify(exec);
 
@@ -14,7 +16,7 @@ const dbName = 'AVSData';
 const registryCollectionName = 'registryAddresses';
 
 // Infura and Web3 setup
-const infuraUrl = 'https://mainnet.infura.io/v3/2bf4df7e147a4b4990678da24ad867c1';
+const infuraUrl = 'https://mainnet.infura.io/v3/3829e40831594f05a2e04ef536263af6';
 const web3 = new Web3(infuraUrl);
 
 // ABI for registryCoordinator method
@@ -32,6 +34,15 @@ const registryCoordinatorAbi = [
         "payable": false,
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            { "indexed": true, "internalType": "bytes32", "name": "operatorId", "type": "bytes32" },
+            { "indexed": false, "internalType": "string", "name": "socket", "type": "string" }
+        ],
+        "name": "OperatorSocketUpdate",
+        "type": "event"
     }
 ];
 
@@ -256,10 +267,16 @@ async function measureResponseTime(ipWithSocket) {
 
 async function fetchOperatorsForAVS(avsName) {
     try {
-        const response = await axios.get(`https://api.dune.com/api/v1/eigenlayer/operator-to-avs-mapping?avs_name=${avsName}`, {
+        console.log(avsName)
+        const url = `https://api.dune.com/api/v1/eigenlayer/operator-to-avs-mapping?api_key=9twHTOAjtbl9jLGhJAGtDPNTGMY9CyKz&limit=99&filters=avs_name%20%3D%20%22${avsName}%22`;
+        const headers = {
+            'X-DUNE-API-KEY': '9twHTOAjtbl9jLGhJAGtDPNTGMY9CyKz'
+        };
+        console.log(url)
+        const response = await axios.get(url, {
             headers: { 'X-DUNE-API-KEY': '9twHTOAjtbl9jLGhJAGtDPNTGMY9CyKz' }
         });
-
+        // console.log(response.data.result.rows)
         const operators = response.data.result.rows.map(row => ({
             operator_contract_address: row.operator_contract_address,
             operator_name: row.operator_name,
@@ -273,6 +290,42 @@ async function fetchOperatorsForAVS(avsName) {
         return [];
     }
 }
+const isValidSocket = (socket) => {
+    const socketParts = socket.split(':');
+    if (socketParts.length !== 2) return false; // Ensure it's in the format hostname:port
+
+    const hostname = socketParts[0];
+    const port = socketParts[1];
+
+    return true;
+};
+
+async function getHistoricOperatorSocketUpdates(registryAddress, operatorId) {
+    const registryCoordinatorContract = new web3.eth.Contract(registryCoordinatorAbi, registryAddress);
+    try {
+        const events = await registryCoordinatorContract.getPastEvents('OperatorSocketUpdate', {
+            filter: { operatorId: operatorId },
+            fromBlock: 0,
+            toBlock: 'latest'
+        });
+
+        const validSockets = [];
+
+        for (let i = events.length - 1; i >= 0; i--) {
+            const event = events[i];
+            const socket = event.returnValues.socket;
+            if (socket && socket !== 'Not Needed' && socket !== 'no need' && socket !== '') {
+                validSockets.push(socket);
+            }
+        }
+
+        return validSockets;
+    } catch (error) {
+        console.error(`Error fetching OperatorSocketUpdate events for operatorId ${operatorId}: ${error.message}`);
+        return [];
+    }
+}
+
 
 module.exports = {
     fetchAvsMetadata,
@@ -285,5 +338,6 @@ module.exports = {
     scanPorts,
     measureLatency,
     measureResponseTime,
-    fetchOperatorsForAVS
+    fetchOperatorsForAVS,
+    getHistoricOperatorSocketUpdates
 };
