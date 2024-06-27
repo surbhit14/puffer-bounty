@@ -12,7 +12,7 @@ const { MongoClient } = require('mongodb');
 
 // MongoDB connection details
 const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-const dbName = 'AVSData';
+const dbName = 'AVSData2';
 const registryCollectionName = 'registryAddresses';
 
 // Infura and Web3 setup
@@ -496,17 +496,19 @@ async function fetchAndStoreQuorumData(registryCoordinatorAddress, operatorAddre
             try {
                 console.log(quorumNumber)
                 console.log("Operator Id: ",operatorId)
-                const currentStake = await stakeRegistryContract.methods.getCurrentStake(operatorId, quorumNumber).call();
-                console.log("Stake: ",currentStake)
-                const currentTotalStake = await stakeRegistryContract.methods.getCurrentTotalStake(quorumNumber).call();
-                console.log("Total Stake: ",currentTotalStake)
+                const currentStakeBigInt = await stakeRegistryContract.methods.getCurrentStake(operatorId, quorumNumber).call();
+                console.log("Stake: ",currentStakeBigInt.toString())
+                const currentTotalStakeBigInt = await stakeRegistryContract.methods.getCurrentTotalStake(quorumNumber).call();
+                console.log("Total Stake: ",currentTotalStakeBigInt.toString())
+
+                const quorumData = {
+                    currentStake: currentStakeBigInt.toString(),
+                    currentTotalStake: currentTotalStakeBigInt.toString()
+                };
 
 
                 
-                return {
-                    currentStake:currentStake.toString(),
-                    currentTotalStake:currentTotalStake.toString()
-                }
+                return quorumData;
             } catch (error) {
                 console.log(error)
             }

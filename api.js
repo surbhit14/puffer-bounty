@@ -6,6 +6,8 @@ const { performance } = require('perf_hooks');
 const { setDefaultResultOrder } = require("dns");
 const net = require('net');
 const mongoose = require('mongoose');
+const { Parser } = require('json2csv');
+
 
 // setDefaultResultOrder("ipv4first");
 
@@ -226,8 +228,18 @@ const TimeSeriesSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const StakeSchema = new mongoose.Schema({
+    AVS_name: String,
+    operator_address: String,
+    quorumData: Array,
+    operator_stake: String,
+    total_stake: String
+});
+
 const Operator = mongoose.model('Operator', OperatorSchema);
 const TimeSeries = mongoose.model('TimeSeries', TimeSeriesSchema);
+const Stake = mongoose.model('Stake', StakeSchema);
+
 
 // app.get('/api/timeseries', async (req, res) => {
 //     const { operatorAddress } = req.query;
@@ -344,8 +356,18 @@ app.get('/api/operator-quorum-data', async (req, res) => {
                             registryCoordinatorAddress: registry.registryCoordinatorAddress,
                             operatorId,
                             quorumData,
-                            quorumNumber
+                            quorumNumber,
+                            registryName:registry.avs_name
                         });
+
+                        const stakeRecord = new Stake({
+                            AVS_name: registry.avs_name,
+                            operator_address: operatorAddress,
+                            operator_stake: quorumData.currentStake.toString(),
+                            total_stake: quorumData.currentTotalStake.toString()
+                        });
+                
+                        await stakeRecord.save();
                     }
                 }   
             }
@@ -360,6 +382,21 @@ app.get('/api/operator-quorum-data', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+app.get('/api/operator-quorum-data/csv', async (req, res) => {
+    try {
+        const stakeData = await Stake.find().lean();
+        const json2csvParser = new Parser();
+        const csv = json2csvParser.parse(stakeData);
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment('quorum_data.csv');
+        res.send(csv);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 
 
