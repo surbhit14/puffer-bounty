@@ -1,5 +1,5 @@
 const express = require('express');
-const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS,getHistoricOperatorSocketUpdates } = require('./helpers');
+const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS,getHistoricOperatorSocketUpdates,fetchAndStoreQuorumData,getQuorumCount } = require('./helpers');
 const { MongoClient } = require('mongodb');
 const axios = require('axios');
 const { performance } = require('perf_hooks');
@@ -311,6 +311,48 @@ app.get('/api/operator-socket-updates', async (req, res) => {
 
         if (results.length === 0) {
             res.status(404).json({ error: 'No valid OperatorSocketUpdate events found for the operator' });
+        } else {
+            res.json(results);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Endpoint to fetch quorum data for an operator in the AVSs
+app.get('/api/operator-quorum-data', async (req, res) => {
+    const { operatorAddress, avsName } = req.query;
+
+    if (!operatorAddress) {
+        return res.status(400).json({ error: 'operatorAddress is required' });
+    }
+
+    try {
+        const registries = await fetchRegistryAddresses();
+        const results = [];
+
+        for (const registry of registries) {
+            const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+            const quorumCount = await getQuorumCount(registry.registryCoordinatorAddress);
+            
+            if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                for (let quorumNumber = 0; quorumNumber < quorumCount; quorumNumber++) {
+                    const quorumData = await fetchAndStoreQuorumData(registry.registryCoordinatorAddress, operatorAddress, operatorId, registry.avs_name,quorumNumber);
+                    console.log("In API",quorumData);
+                    if (quorumData) {
+                        results.push({
+                            registryCoordinatorAddress: registry.registryCoordinatorAddress,
+                            operatorId,
+                            quorumData,
+                            quorumNumber
+                        });
+                    }
+                }   
+            }
+        }
+
+        if (results.length === 0) {
+            res.status(404).json({ error: 'No quorum data found for the operator' });
         } else {
             res.json(results);
         }

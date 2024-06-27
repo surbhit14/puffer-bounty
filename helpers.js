@@ -43,8 +43,153 @@ const registryCoordinatorAbi = [
         ],
         "name": "OperatorSocketUpdate",
         "type": "event"
-    }
+    },
+    {
+        "constant": true,
+        "inputs": [],
+        "name": "stakeRegistry",
+        "outputs": [
+            {
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [],
+        "name": "quorumCount",
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint8"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
 ];
+
+const stakeRegistryAbi = [
+    // Add relevant ABI for StakeRegistry
+    {
+        "constant": true,
+        "inputs": [
+            {
+                "name": "operatorId",
+                "type": "bytes32"
+            },
+            {
+                "name": "quorumNumber",
+                "type": "uint8"
+            }
+        ],
+        "name": "getStakeHistory",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "name": "updateBlockNumber",
+                        "type": "uint32"
+                    },
+                    {
+                        "name": "nextUpdateBlockNumber",
+                        "type": "uint32"
+                    },
+                    {
+                        "name": "stake",
+                        "type": "uint96"
+                    }
+                ],
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [
+            {
+                "name": "quorumNumber",
+                "type": "uint8"
+            }
+        ],
+        "name": "getTotalStakeHistory",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "name": "updateBlockNumber",
+                        "type": "uint32"
+                    },
+                    {
+                        "name": "nextUpdateBlockNumber",
+                        "type": "uint32"
+                    },
+                    {
+                        "name": "stake",
+                        "type": "uint96"
+                    }
+                ],
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [
+            {
+                "name": "operatorId",
+                "type": "bytes32"
+            },
+            {
+                "name": "quorumNumber",
+                "type": "uint8"
+            }
+        ],
+        "name": "getCurrentStake",
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint96"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [
+            {
+                "name": "quorumNumber",
+                "type": "uint8"
+            }
+        ],
+        "name": "getCurrentTotalStake",
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint96"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
+];
+
 
 // Function to fetch AVS metadata from Dune API
 async function fetchAvsMetadata() {
@@ -326,6 +471,56 @@ async function getHistoricOperatorSocketUpdates(registryAddress, operatorId) {
     }
 }
 
+async function getQuorumCount(registryCoordinatorAddress){
+    const registryCoordinatorContract = new web3.eth.Contract(registryCoordinatorAbi, registryCoordinatorAddress);
+
+    const quorumCountBigInt = await registryCoordinatorContract.methods.quorumCount().call();
+    const quorumCount = Number(quorumCountBigInt);
+    console.log("Count is: ",quorumCount);
+    return quorumCount;
+} 
+
+async function fetchAndStoreQuorumData(registryCoordinatorAddress, operatorAddress, operatorId, avsName,quorumNumber) {
+    const registryCoordinatorContract = new web3.eth.Contract(registryCoordinatorAbi, registryCoordinatorAddress);
+    const client = new MongoClient(mongoUrl);
+            
+    try {
+        await client.connect();
+        const db = client.db(dbName);
+
+        const stakeRegistryAddress = await registryCoordinatorContract.methods.stakeRegistry().call();
+        const stakeRegistryContract = new web3.eth.Contract(stakeRegistryAbi, stakeRegistryAddress);
+        console.log(registryCoordinatorAddress)
+        console.log(stakeRegistryAddress)
+
+            try {
+                console.log(quorumNumber)
+                console.log("Operator Id: ",operatorId)
+                const currentStake = await stakeRegistryContract.methods.getCurrentStake(operatorId, quorumNumber).call();
+                console.log("Stake: ",currentStake)
+                const currentTotalStake = await stakeRegistryContract.methods.getCurrentTotalStake(quorumNumber).call();
+                console.log("Total Stake: ",currentTotalStake)
+
+
+                
+                return {
+                    currentStake:currentStake.toString(),
+                    currentTotalStake:currentTotalStake.toString()
+                }
+            } catch (error) {
+                console.log(error)
+            }
+        // }
+
+        console.log(quorumData)
+
+        return quorumData;
+    } catch (error) {
+        console.error(`Error fetching and storing quorum data for operatorId ${operatorId}: ${error.message}`);
+        return null;
+    }
+}
+
 
 module.exports = {
     fetchAvsMetadata,
@@ -339,5 +534,7 @@ module.exports = {
     measureLatency,
     measureResponseTime,
     fetchOperatorsForAVS,
-    getHistoricOperatorSocketUpdates
+    getHistoricOperatorSocketUpdates,
+    fetchAndStoreQuorumData,
+    getQuorumCount
 };
