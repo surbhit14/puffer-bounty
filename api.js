@@ -1,5 +1,5 @@
 const express = require('express');
-const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS,getHistoricOperatorSocketUpdates,fetchAndStoreQuorumData,getQuorumCount } = require('./helpers');
+const { getOperatorIdFromRegistry, fetchOperatorSocket, fetchRegistryAddresses,fetchOperatorsForAVS,getHistoricOperatorSocketUpdates,fetchAndStoreQuorumData,getQuorumCount } = require('./helpers.js');
 const { MongoClient } = require('mongodb');
 const axios = require('axios');
 const { performance } = require('perf_hooks');
@@ -7,8 +7,6 @@ const { setDefaultResultOrder } = require("dns");
 const net = require('net');
 const mongoose = require('mongoose');
 const { Parser } = require('json2csv');
-
-
 
 // MongoDB connection details
 // const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
@@ -154,6 +152,7 @@ app.get('/api/check-ports', async (req, res) => {
                         retrieval_socket: `${ipAddress}:${retrievalPort}`,
                         retrieval_response_time: retrievalStatus.responseTime
                     };
+
                     res.json(status);
                     responseSent = true;
                     break; // Stop the loop once a response has been sent
@@ -338,7 +337,8 @@ app.get('/api/operator-quorum-data', async (req, res) => {
                             AVS_name: registry.avs_name,
                             operator_address: operatorAddress,
                             operator_stake: quorumData.currentStake.toString(),
-                            total_stake: quorumData.currentTotalStake.toString()
+                            total_stake: quorumData.currentTotalStake.toString(),
+                            weight_of_operator_for_quorum: quorumData.weightOfOperatorForQuorum.toString()
                         });
                 
                         await stakeRecord.save();

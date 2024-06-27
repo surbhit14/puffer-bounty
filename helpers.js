@@ -188,8 +188,30 @@ const stakeRegistryAbi = [
         "stateMutability": "view",
         "type": "function"
     },
+    {
+        "constant": true,
+        "inputs": [
+            {
+                "name": "quorumNumber",
+                "type": "uint8"
+            },
+            {
+                "name": "operator",
+                "type": "address"
+            }
+        ],
+        "name": "weightOfOperatorForQuorum",
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint96"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    },
 ];
-
 
 // Function to fetch AVS metadata from Dune API
 async function fetchAvsMetadata() {
@@ -393,17 +415,17 @@ async function fetchAndStoreQuorumData(registryCoordinatorAddress, operatorAddre
                 console.log("Stake: ",currentStakeBigInt.toString())
                 const currentTotalStakeBigInt = await stakeRegistryContract.methods.getCurrentTotalStake(quorumNumber).call();
                 console.log("Total Stake: ",currentTotalStakeBigInt.toString())
-
+                const weightOfOperatorForQuorumBigInt = await stakeRegistryContract.methods.weightOfOperatorForQuorum(quorumNumber,operatorAddress).call();
+                console.log("Weight: ",weightOfOperatorForQuorumBigInt.toString())
                 const quorumData = {
                     currentStake: currentStakeBigInt.toString(),
-                    currentTotalStake: currentTotalStakeBigInt.toString()
+                    currentTotalStake: currentTotalStakeBigInt.toString(),
+                    weightOfOperatorForQuorum: weightOfOperatorForQuorumBigInt.toString()
                 };
                 return quorumData;
             } catch (error) {
                 console.log(error)
             }
-        // }
-
         console.log(quorumData)
 
         return quorumData;
