@@ -309,107 +309,9 @@ async function fetchRegistryAddresses() {
     }
 }
 
-// Function to check service response time
-// Function to check service response time
+
 
 //curl -w "Time: %{time_total}\n" -o /dev/null -s http://129.213.106.122:32004
-function checkResponseTime(url) {
-
-    const curlCommand = `curl -w "Time: %{time_total}\\n" -o /dev/null -s ${url}`;
-    console.log(`Executing command: ${curlCommand}`);
-
-    try {
-        const curlVersion = execSync('curl --version');
-        console.log('curl is available:', curlVersion.toString());
-        const stdout = execSync(curlCommand);
-        const result = execSync('echo Hello, world!');
-        console.log(result)
-        res.send(`Command output: ${result.toString()}`);
-        console.log(`stdout: ${stdout.toString()}`);
-        res.send(`Response time: ${stdout.toString().trim()} seconds`);
-    } catch (error) {
-        console.error(`execSync error: ${error}`);
-        console.error(`stderr: ${error.stderr.toString()}`);
-        res.status(500).send(`Error executing curl command: ${error.stderr.toString() || error.message}`);
-    }
-    // try {
-    //     console.log(url);
-    //     const command = `curl -w "Time: %{time_total}" -o /dev/null -s ${url}`;
-    //     console.log(command);
-    //     const result = execSync(command);
-    //     console.log("Result is",result);
-    //     return result
-    //     // return parseFloat(result.toString().split('Time: ')[1]);
-    // } catch (error) {
-    //     console.error(`Error checking response time for ${url}: ${error.message}`);
-    //     return null;
-    // }
-}
-
-async function checkPort(ip, port) {
-    return new Promise((resolve) => {
-        const socket = new net.Socket();
-        socket.setTimeout(5000); // Timeout after 5 seconds
-
-        socket.on('connect', () => {
-            socket.destroy();
-            resolve(true);
-        });
-
-        socket.on('timeout', () => {
-            socket.destroy();
-            resolve(false);
-        });
-
-        socket.on('error', () => {
-            socket.destroy();
-            resolve(false);
-        });
-
-        socket.connect(port, ip);
-    });
-}
-
-async function measureLatency(ip) {
-    console.log(ip);
-    try {
-        const { stdout } = await execAsync(`ping -c 4 ${ip}`);
-        return stdout;
-    } catch (error) {
-        throw new Error(`Ping error: ${error.stderr || error.message}`);
-    }
-}
-
-async function scanPorts(ip, ports = PORTS) {
-    const openPorts = [];
-    for (const port of ports) {
-        const isOpen = await checkPort(ip, port);
-        if (isOpen) {
-            openPorts.push(port);
-        }
-    }
-    return openPorts;
-}
-
-async function measureResponseTime(ipWithSocket) {
-    return new Promise((resolve, reject) => {
-        const curlCommand = `curl -w "Time: %{time_total}\\n" -o /dev/null -s http://${ipWithSocket}`;
-        const cmd = `curl -w "Time: %{time_total}\\n" -o /dev/null -s http://37.27.124.169:32005`
-        console.log(cmd)
-        exec(curlCommand, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error: ${error}`);
-                return;
-              }
-              if (stderr) {
-                console.error(`stderr: ${stderr}`);
-                return;
-              }
-              console.log(`stdout: ${stdout}`);
-        });
-    });
-}
-
 async function fetchOperatorsForAVS(avsName) {
     try {
         console.log(avsName)
@@ -435,15 +337,6 @@ async function fetchOperatorsForAVS(avsName) {
         return [];
     }
 }
-const isValidSocket = (socket) => {
-    const socketParts = socket.split(':');
-    if (socketParts.length !== 2) return false; // Ensure it's in the format hostname:port
-
-    const hostname = socketParts[0];
-    const port = socketParts[1];
-
-    return true;
-};
 
 async function getHistoricOperatorSocketUpdates(registryAddress, operatorId) {
     const registryCoordinatorContract = new web3.eth.Contract(registryCoordinatorAbi, registryAddress);
@@ -505,9 +398,6 @@ async function fetchAndStoreQuorumData(registryCoordinatorAddress, operatorAddre
                     currentStake: currentStakeBigInt.toString(),
                     currentTotalStake: currentTotalStakeBigInt.toString()
                 };
-
-
-                
                 return quorumData;
             } catch (error) {
                 console.log(error)
@@ -531,10 +421,6 @@ module.exports = {
     getOperatorIdFromRegistry,
     fetchOperatorSocket,
     fetchRegistryAddresses,
-    checkResponseTime,
-    scanPorts,
-    measureLatency,
-    measureResponseTime,
     fetchOperatorsForAVS,
     getHistoricOperatorSocketUpdates,
     fetchAndStoreQuorumData,

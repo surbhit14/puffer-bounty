@@ -5,7 +5,7 @@ const cron = require('node-cron');
 // MongoDB connection
 const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/AVSData?retryWrites=true&w=majority&appName=Cluster0";
 // const dbName = 'AVSData';
-mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(mongoUrl);
 
 const OperatorSchema = new mongoose.Schema({
     operatorAddress: String,
@@ -31,7 +31,6 @@ const fetchOperators = async () => {
         });
         // console.log(response.data.result.rows);
         const operators = response.data.result.rows;
-        var i=0;
         for (const operator of operators) {
             console.log(operator)
             console.log(operator.operator_contract_address)
@@ -40,9 +39,6 @@ const fetchOperators = async () => {
                 { operatorAddress: operator.operator_contract_address, avsName: operator.avsName, optedForMonitoring: true },
                 { upsert: true }
             );
-            i++;
-            if(i>=2)
-                break;
         }
         console.log('Operators fetched and stored successfully');
     } catch (error) {
@@ -50,17 +46,21 @@ const fetchOperators = async () => {
     }
 };
 
-const checkPorts = async (operatorAddress, avsName) => {
-    console.log(operatorAddress,avsName);
+const checkPorts = async (operatorAddress) => {
+    console.log("Operator Address: ",operatorAddress);
     try {
         const response = await axios.get(`http://localhost:3000/api/check-ports`, {
-            params: { operatorAddress, avsName }
+            params: { operatorAddress}
         });
         console.log(response.data);
-        const { dispersal_response_time, retrieval_response_time } = response.data;
+        const { dispersal_online,dispersal_socket,dispersal_response_time,retrieval_online,retrieval_socket,retrieval_response_time } = response.data;
         await TimeSeries.create({
             operatorAddress,
+            dispersal_online,
+            dispersal_socket,
             dispersal_response_time,
+            retrieval_online,
+            retrieval_socket,
             retrieval_response_time
         });
         console.log(`Stored response times for ${operatorAddress}`);
@@ -70,15 +70,15 @@ const checkPorts = async (operatorAddress, avsName) => {
 };
 
 // Fetch operators once at the start
-fetchOperators();
+// fetchOperators();
 
 // Schedule cron job to run every 5 minutes
 cron.schedule('*/1 * * * *', async () => {
     const operators = await Operator.find({ optedForMonitoring: true });
     console.log("Registered Operators: ");
-    console.log(operators);
+    // console.log(operators);
     for (const operator of operators) {
-        await checkPorts(operator.operatorAddress, operator.avsName);
+        await checkPorts(operator.operatorAddress);
     }
     console.log('Cron job executed successfully');
 });

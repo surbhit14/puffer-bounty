@@ -9,14 +9,13 @@ const mongoose = require('mongoose');
 const { Parser } = require('json2csv');
 
 
-// setDefaultResultOrder("ipv4first");
 
 // MongoDB connection details
 // const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 // const dbName = 'AVSData';
 const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/AVSData?retryWrites=true&w=majority&appName=Cluster0";
 // const dbName = 'AVSData';
-mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(mongoUrl);
 
 const app = express();
 const port = 3000;
@@ -33,16 +32,6 @@ app.use(express.json());
 //return data stored in the time series data and alo add the avs name in response of each time series data
 
 //for the cron job use this and before cron job call a function which registers any 20 operators for monitoring(get data from Dune API)
-
-// cron.schedule('*/1 * * * *', async () => {
-//     const operators = await Operator.find({ optedForMonitoring: true });
-//     console.log("Registered Operators: ");
-//     console.log(operators);
-//     for (const operator of operators) {
-//         await checkPorts(operator.operatorAddress, operator.avsName);
-//     }
-//     console.log('Cron job executed successfully');
-// });
 
 app.get('/api/operator-ip', async (req, res) => {
     const { operatorAddress } = req.query;
@@ -146,11 +135,12 @@ app.get('/api/check-ports', async (req, res) => {
 
             const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                console.log("Operator Id: ",operatorId)
                 const socket = await fetchOperatorSocket(operatorId);
-                console.log(socket);
+                console.log("Socket: ",socket);
                 if (socket) {
                     const ipAddress = socket.split(':')[0];
-                    console.log(ipAddress);
+                    console.log("IP Address: ",ipAddress);
                     const dispersalPort = 32005, retrievalPort = 32004;
 
                     const dispersalStatus = await checkPort(ipAddress, dispersalPort);
@@ -164,7 +154,6 @@ app.get('/api/check-ports', async (req, res) => {
                         retrieval_socket: `${ipAddress}:${retrievalPort}`,
                         retrieval_response_time: retrievalStatus.responseTime
                     };
-
                     res.json(status);
                     responseSent = true;
                     break; // Stop the loop once a response has been sent
@@ -185,34 +174,34 @@ app.get('/api/check-ports', async (req, res) => {
 
 
 // Endpoint to return all registered AVSs for an operator
-app.get('/api/registered-avss', async (req, res) => {
-    const { operatorAddress } = req.query;
+// app.get('/api/registered-avss', async (req, res) => {
+//     const { operatorAddress } = req.query;
 
-    if (!operatorAddress) {
-        return res.status(400).json({ error: 'operatorAddress is required' });
-    }
+//     if (!operatorAddress) {
+//         return res.status(400).json({ error: 'operatorAddress is required' });
+//     }
 
-    try {
-        const registries = await fetchRegistryAddresses();
-        const registeredAvss = [];
+//     try {
+//         const registries = await fetchRegistryAddresses();
+//         const registeredAvss = [];
 
-        for (const registry of registries) {
-            const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+//         for (const registry of registries) {
+//             const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
 
-            if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
-                const socket = await fetchOperatorSocket(operatorId);
-                console.log(socket)
-                if (socket) {
-                    registeredAvss.push(registry.avs_name);
-                }
-            }
-        }
+//             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+//                 const socket = await fetchOperatorSocket(operatorId);
+//                 console.log(socket)
+//                 if (socket) {
+//                     registeredAvss.push(registry.avs_name);
+//                 }
+//             }
+//         }
 
-        res.json(registeredAvss);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+//         res.json(registeredAvss);
+//     } catch (error) {
+//         res.status(500).json({ error: error.message });
+//     }
+// });
 
 const OperatorSchema = new mongoose.Schema({
     operatorAddress: String,
@@ -239,21 +228,6 @@ const StakeSchema = new mongoose.Schema({
 const Operator = mongoose.model('Operator', OperatorSchema);
 const TimeSeries = mongoose.model('TimeSeries', TimeSeriesSchema);
 const Stake = mongoose.model('Stake', StakeSchema);
-
-
-// app.get('/api/timeseries', async (req, res) => {
-//     const { operatorAddress } = req.query;
-//     if (!operatorAddress) {
-//         return res.status(400).json({ error: 'operatorAddress is required' });
-//     }
-
-//     try {
-//         const timeSeriesData = await TimeSeries.find({ operatorAddress }).sort({ timestamp: 1 });
-//         res.json(timeSeriesData);
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// });
 
 // Endpoint to get time series data
 app.get('/api/timeseries', async (req, res) => {
@@ -397,9 +371,28 @@ app.get('/api/operator-quorum-data/csv', async (req, res) => {
     }
 });
 
+app.get('/api/timeseries/csv', async (req, res) => {
+    const { operatorAddress } = req.query;
+    const query = operatorAddress ? { operatorAddress } : {};
 
+    try {
+        const timeSeriesData = await TimeSeries.find(query).sort({ timestamp: 1 }).lean();
+        
+        if (timeSeriesData.length === 0) {
+            return res.status(404).json({ error: 'No time series data found' });
+        }
 
+        const fields = ['operatorAddress', 'avsId', 'avsName', 'dispersal_response_time', 'retrieval_response_time', 'timestamp'];
+        const json2csvParser = new Parser({ fields });
+        const csv = json2csvParser.parse(timeSeriesData);
 
+        res.header('Content-Type', 'text/csv');
+        res.attachment('timeseries_data.csv');
+        res.send(csv);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Start the server
 app.listen(port, () => {

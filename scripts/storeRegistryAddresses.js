@@ -96,7 +96,7 @@ async function storeRegistryAddresses(db, avsMetadata) {
 
 // Main function to fetch and store registry coordinator addresses
 async function main() {
-    const client = new MongoClient(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+    const client = new MongoClient(mongoUrl);
     try {
         await client.connect();
         const db = client.db(dbName);
