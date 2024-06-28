@@ -370,6 +370,10 @@ app.get('/api/timeseries/csv', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.send('Server is running');
+});
+
 // Start the server
 app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
