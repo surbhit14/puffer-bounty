@@ -39,13 +39,15 @@ app.get('/api/operator-ip', async (req, res) => {
     }
 
     try {
-        const registries = await fetchRegistryAddresses();
+        const registries = await fetchRegistryAddresses("EigenDA");
         let socket = "";
         let ipAddress = "";
         let operatorId = "";
         let found = false;
 
         for (const registry of registries) {
+            console.log(registry.avs_name);
+            console.log(registry.registryCoordinatorAddress);
             operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
             console.log(operatorId);
 
@@ -125,13 +127,17 @@ app.get('/api/check-ports', async (req, res) => {
     }
 
     try {
-        const registries = await fetchRegistryAddresses();
+        const registries = await fetchRegistryAddresses("EigenDA");
+        // const registries = await fetchRegistryAddresses();
+
         let responseSent = false;
 
         for (const registry of registries) {
+            console.log(registry.avs_name);
             if (responseSent) break; // Stop processing if a response has been sent
 
             const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
+            console.log(registry.registryCoordinatorAddress)
             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
                 console.log("Operator Id: ",operatorId)
                 const socket = await fetchOperatorSocket(operatorId);
@@ -162,7 +168,7 @@ app.get('/api/check-ports', async (req, res) => {
 
         if (!responseSent) {
             await Operator.deleteOne({ operatorAddress });
-            res.status(404).json({ error: 'Operator not found in any registry, removed from database' });
+            res.status(404).json({ error: 'Operator not found' });
         }
     } catch (error) {
         if (!responseSent) {
@@ -170,37 +176,6 @@ app.get('/api/check-ports', async (req, res) => {
         }
     }
 });
-
-
-// Endpoint to return all registered AVSs for an operator
-// app.get('/api/registered-avss', async (req, res) => {
-//     const { operatorAddress } = req.query;
-
-//     if (!operatorAddress) {
-//         return res.status(400).json({ error: 'operatorAddress is required' });
-//     }
-
-//     try {
-//         const registries = await fetchRegistryAddresses();
-//         const registeredAvss = [];
-
-//         for (const registry of registries) {
-//             const operatorId = await getOperatorIdFromRegistry(registry.registryCoordinatorAddress, operatorAddress);
-
-//             if (operatorId && operatorId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
-//                 const socket = await fetchOperatorSocket(operatorId);
-//                 console.log(socket)
-//                 if (socket) {
-//                     registeredAvss.push(registry.avs_name);
-//                 }
-//             }
-//         }
-
-//         res.json(registeredAvss);
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// });
 
 const OperatorSchema = new mongoose.Schema({
     operatorAddress: String,
@@ -236,32 +211,6 @@ app.get('/api/timeseries', async (req, res) => {
     try {
         const timeSeriesData = await TimeSeries.find(query).sort({ timestamp: 1 });
         res.json(timeSeriesData);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Endpoint to get time series data for all operators in a particular AVS
-app.get('/api/timeseries/avs', async (req, res) => {
-    const { avsName } = req.query;
-
-    if (!avsName) {
-        return res.status(400).json({ error: 'avsName is required' });
-    }
-
-    try {
-        const operators = await fetchOperatorsForAVS(avsName);
-        
-        const operatorAddresses = operators.map(op => op.operator_contract_address);
-        // console.log(operatorAddresses)
-        const timeSeriesData = await TimeSeries.find({ operatorAddress: { $in: operatorAddresses } }).sort({ timestamp: 1 });
-
-        const enrichedData = timeSeriesData.map(data => ({
-            ...data._doc,
-            avsName
-        }));
-
-        res.json(enrichedData);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -357,11 +306,36 @@ app.get('/api/operator-quorum-data', async (req, res) => {
     }
 });
 
+// app.get('/api/operator-quorum-data/csv', async (req, res) => {
+//     try {
+//         const stakeData = await Stake.find().lean();
+//         const json2csvParser = new Parser();
+//         const csv = json2csvParser.parse(stakeData);
+
+//         res.header('Content-Type', 'text/csv');
+//         res.attachment('quorum_data.csv');
+//         res.send(csv);
+//     } catch (error) {
+//         res.status(500).json({ error: error.message });
+//     }
+// });
+
 app.get('/api/operator-quorum-data/csv', async (req, res) => {
     try {
         const stakeData = await Stake.find().lean();
-        const json2csvParser = new Parser();
-        const csv = json2csvParser.parse(stakeData);
+
+        // Modify the stakeData to format stakes and remove quorumData
+        const formattedStakeData = stakeData.map(data => ({
+            AVS_name: data.AVS_name,
+            operator_address: data.operator_address,
+            operator_stake: (isNaN(Number(data.operator_stake) / 1e18) ? 0 : Number(data.operator_stake) / 1e18).toString(),
+            total_stake: (isNaN(Number(data.total_stake) / 1e18) ? 0 : Number(data.total_stake) / 1e18).toString(),
+            weight_of_operator_for_quorum: (isNaN(Number(data.weight_of_operator_for_quorum) / 1e18) ? 0 : Number(data.weight_of_operator_for_quorum) / 1e18).toString()
+        }));
+
+        const fields = ['AVS_name', 'operator_address', 'operator_stake', 'total_stake', 'weight_of_operator_for_quorum'];
+        const json2csvParser = new Parser({ fields });
+        const csv = json2csvParser.parse(formattedStakeData);
 
         res.header('Content-Type', 'text/csv');
         res.attachment('quorum_data.csv');
@@ -370,6 +344,8 @@ app.get('/api/operator-quorum-data/csv', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+
 
 app.get('/api/timeseries/csv', async (req, res) => {
     const { operatorAddress } = req.query;

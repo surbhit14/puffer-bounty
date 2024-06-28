@@ -12,7 +12,7 @@ const { MongoClient } = require('mongodb');
 
 // MongoDB connection details
 const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-const dbName = 'AVSData2';
+const dbName = 'AVSData';
 const registryCollectionName = 'registryAddresses';
 
 // Infura and Web3 setup
@@ -288,6 +288,7 @@ async function getOperatorIdFromRegistry(registryAddress, operatorAddress) {
     try {
         const checksumAddress = web3.utils.toChecksumAddress(operatorAddress);
         const operatorId = await contract.methods.getOperatorId(checksumAddress).call();
+        console.log("Operator Id: ",operatorId)
         return operatorId;
     } catch (error) {
         console.error(`Error fetching operator ID for ${operatorAddress} from registry ${registryAddress}: ${error.message}`);
@@ -297,31 +298,39 @@ async function getOperatorIdFromRegistry(registryAddress, operatorAddress) {
 
 // Function to fetch operator socket using operator ID
 async function fetchOperatorSocket(operatorId) {
-    const apiUrl = `https://dataapi.eigenda.xyz/api/v1/operators-info/port-check?operator_id=${operatorId}`;
+    const formattedOperatorId = operatorId.startsWith('0x') ? operatorId.slice(2) : operatorId;
+    const apiUrl = `https://dataapi.eigenda.xyz/api/v1/operators-info/port-check?operator_id=${formattedOperatorId}`;
     try {
         const response = await fetch(apiUrl);
         const data = await response.json();
+        console.log(data);
         if (data && data.dispersal_socket) {
             return data.dispersal_socket;
         } else {
-            console.warn(`No socket found for operator ID ${operatorId}`);
+            console.warn(`No socket found for operator ID ${formattedOperatorId}`);
             return null;
         }
     } catch (error) {
-        console.error(`Error fetching socket for operator ID ${operatorId}: ${error.message}`);
+        console.error(`Error fetching socket for operator ID ${formattedOperatorId}: ${error.message}`);
         return null;
     }
 }
 
+
 // Function to fetch registry addresses from MongoDB
-async function fetchRegistryAddresses() {
+async function fetchRegistryAddresses(avsName = null) {
     const client = new MongoClient(mongoUrl);
     try {
         await client.connect();
         const db = client.db(dbName);
         const collection = db.collection(registryCollectionName);
         
-        const registries = await collection.find().toArray();
+        let query = {};
+        if (avsName) {
+            query = { avs_name: avsName };
+        }
+
+        const registries = await collection.find(query).toArray();
         return registries;
     } catch (error) {
         console.error(`Error fetching registry addresses from MongoDB: ${error.message}`);
