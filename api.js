@@ -261,8 +261,12 @@ app.get('/api/operator-quorum-data', async (req, res) => {
         return res.status(400).json({ error: 'operatorAddress is required' });
     }
 
+    if(!avsName){
+        return res.status(400).json({ error: 'avsName is required' });
+    }
+
     try {
-        const registries = await fetchRegistryAddresses();
+        const registries = await fetchRegistryAddresses(avsName);
         const results = [];
 
         for (const registry of registries) {
