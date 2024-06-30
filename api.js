@@ -72,7 +72,7 @@ app.get('/api/operator-ip', async (req, res) => {
                 socket
             });
         } else {
-            res.json({
+            res.status(404).json({
                 operatorId: 'not registered'
             });
         }
