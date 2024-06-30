@@ -196,7 +196,8 @@ const StakeSchema = new mongoose.Schema({
     operator_address: String,
     quorumData: Array,
     operator_stake: String,
-    total_stake: String
+    total_stake: String,
+    weight_of_operator_for_quorum:String
 });
 
 const Operator = mongoose.model('Operator', OperatorSchema);
@@ -327,7 +328,7 @@ app.get('/api/operator-quorum-data', async (req, res) => {
 app.get('/api/operator-quorum-data/csv', async (req, res) => {
     try {
         const stakeData = await Stake.find().lean();
-
+        console.log(stakeData)
         // Modify the stakeData to format stakes and remove quorumData
         const formattedStakeData = stakeData.map(data => ({
             AVS_name: data.AVS_name,
