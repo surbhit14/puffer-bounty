@@ -3,8 +3,6 @@ const fetch = require('node-fetch');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const axios = require('axios');
-
-
 const execAsync = promisify(exec);
 
 const { MongoClient } = require('mongodb');
@@ -340,9 +338,6 @@ async function fetchRegistryAddresses(avsName = null) {
     }
 }
 
-
-
-//curl -w "Time: %{time_total}\n" -o /dev/null -s http://129.213.106.122:32004
 async function fetchOperatorsForAVS(avsName) {
     try {
         console.log(avsName)

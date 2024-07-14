@@ -15,22 +15,45 @@ const mongoUrl = "mongodb+srv://surbhit:1234@cluster0.tas80.mongodb.net/AVSData?
 // const dbName = 'AVSData';
 mongoose.connect(mongoUrl);
 
+
+
 const app = express();
 const port = 3000;
 
 app.use(express.json());
 
-// API endpoint to fetch IP address for a specific operator
-//1. endpoint which just directly fetches Ip address of the operator from operator address
-//2.endpoint which returns all the registered AVSs(avs name) for this operatorAddress by checking if socket exists
-//3.endpoint which checks dispersal and response time for that node
-//4.endpoint to Get time series data of all (optional filter: operatorAddress)
-//5. endpoint to get timeseies data of all operators in a paricular AVS
-//in this basicallt call the dune api avs to operator mapping with this paricular avs (mandtory field) and now for all these operators 
-//return data stored in the time series data and alo add the avs name in response of each time series data
+const OperatorSchema = new mongoose.Schema({
+    operatorAddress: String,
+    avsName: String,
+    optedForMonitoring: Boolean,
+    createdAt: { type: Date, default: Date.now }
+});
 
-//for the cron job use this and before cron job call a function which registers any 20 operators for monitoring(get data from Dune API)
+const TimeSeriesSchema = new mongoose.Schema({
+    operatorAddress: String,
+    dispersal_response_time: String,
+    retrieval_response_time: String,
+    timestamp: { type: Date, default: Date.now }
+});
 
+const StakeSchema = new mongoose.Schema({
+    AVS_name: String,
+    operator_address: String,
+    quorumData: Array,
+    operator_stake: String,
+    total_stake: String,
+    weight_of_operator_for_quorum:String
+});
+
+const Operator = mongoose.model('Operator', OperatorSchema);
+const TimeSeries = mongoose.model('TimeSeries', TimeSeriesSchema);
+const Stake = mongoose.model('Stake', StakeSchema);
+
+/**
+ * @api {get} /api/operator-ip Fetch operator IP address
+ * @param {string} operatorAddress The address of the operator
+ * @returns {object} Operator ID, IP address, and socket
+ */
 app.get('/api/operator-ip', async (req, res) => {
     const { operatorAddress } = req.query;
 
@@ -58,7 +81,7 @@ app.get('/api/operator-ip', async (req, res) => {
                 if (socket) {
                     ipAddress = socket.split(':')[0];
                     found = true;
-                    break; // Stop the loop once we find a valid socket
+                    break;
                 }
             }
         }
@@ -81,7 +104,13 @@ app.get('/api/operator-ip', async (req, res) => {
     }
 });
 
-
+/**
+ * @function checkPort
+ * @param {string} ip IP address
+ * @param {number} port Port number
+ * @param {number} [timeout=5000] Timeout in milliseconds
+ * @returns {Promise<object>} Online status and response time
+ */
 function checkPort(ip, port, timeout = 5000) {
     return new Promise((resolve) => {
         const start = performance.now();
@@ -120,6 +149,11 @@ function checkPort(ip, port, timeout = 5000) {
     });
 }
 
+/**
+ * @api {get} /api/check-ports Check dispersal and retrieval ports
+ * @param {string} operatorAddress The address of the operator
+ * @returns {object} Dispersal and retrieval online status and response times
+ */
 app.get('/api/check-ports', async (req, res) => {
     const { operatorAddress} = req.query;
     if (!operatorAddress) {
@@ -177,34 +211,14 @@ app.get('/api/check-ports', async (req, res) => {
     }
 });
 
-const OperatorSchema = new mongoose.Schema({
-    operatorAddress: String,
-    avsName: String,
-    optedForMonitoring: Boolean,
-    createdAt: { type: Date, default: Date.now }
-});
 
-const TimeSeriesSchema = new mongoose.Schema({
-    operatorAddress: String,
-    dispersal_response_time: String,
-    retrieval_response_time: String,
-    timestamp: { type: Date, default: Date.now }
-});
-
-const StakeSchema = new mongoose.Schema({
-    AVS_name: String,
-    operator_address: String,
-    quorumData: Array,
-    operator_stake: String,
-    total_stake: String,
-    weight_of_operator_for_quorum:String
-});
-
-const Operator = mongoose.model('Operator', OperatorSchema);
-const TimeSeries = mongoose.model('TimeSeries', TimeSeriesSchema);
-const Stake = mongoose.model('Stake', StakeSchema);
 
 // Endpoint to get time series data
+/**
+ * @api {get} /api/timeseries Get time series data
+ * @param {string} [operatorAddress] Optional filter by operator address
+ * @returns {array} Time series data
+ */
 app.get('/api/timeseries', async (req, res) => {
     const { operatorAddress } = req.query;
     const query = operatorAddress ? { operatorAddress } : {};
@@ -218,6 +232,12 @@ app.get('/api/timeseries', async (req, res) => {
 });
 
 // API endpoint to fetch the historic OperatorSocketUpdate events
+/**
+ * @api {get} /api/operator-socket-updates Get historic OperatorSocketUpdate events
+ * @param {string} operatorAddress The address of the operator
+ * @param {string} avsName The name of the AVS
+ * @returns {array} Historic OperatorSocketUpdate events
+ */
 app.get('/api/operator-socket-updates', async (req, res) => {
     const { operatorAddress, avsName } = req.query;
 
@@ -255,6 +275,12 @@ app.get('/api/operator-socket-updates', async (req, res) => {
 });
 
 // Endpoint to fetch quorum data for an operator in the AVSs
+/**
+ * @api {get} /api/operator-quorum-data Fetch quorum data for an operator in the AVSs
+ * @param {string} operatorAddress The address of the operator
+ * @param {string} avsName The name of the AVS
+ * @returns {array} Quorum data
+ */
 app.get('/api/operator-quorum-data', async (req, res) => {
     const { operatorAddress, avsName } = req.query;
 
@@ -311,19 +337,6 @@ app.get('/api/operator-quorum-data', async (req, res) => {
     }
 });
 
-// app.get('/api/operator-quorum-data/csv', async (req, res) => {
-//     try {
-//         const stakeData = await Stake.find().lean();
-//         const json2csvParser = new Parser();
-//         const csv = json2csvParser.parse(stakeData);
-
-//         res.header('Content-Type', 'text/csv');
-//         res.attachment('quorum_data.csv');
-//         res.send(csv);
-//     } catch (error) {
-//         res.status(500).json({ error: error.message });
-//     }
-// });
 
 app.get('/api/operator-quorum-data/csv', async (req, res) => {
     try {
